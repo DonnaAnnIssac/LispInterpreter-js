@@ -20,7 +20,7 @@ function expressionParser(input) {
 }
 
 function parserFactory(data) {
-  const parsers = [numParser, stringParser, s_expressionParser, identifierParser]
+  const parsers = [numParser, stringParser, s_expressionParser, identifierParser, quoteParser]
   let parser = parsers.filter(function(parser) {
                         if(parser(data) != null) return parser
                       })
@@ -45,8 +45,9 @@ const defaultEnv = {
   'cdr' : cdr = function(args) { args[0].shift()
                                  return args[0]},
   'cons' : cons = function(args) { args[1].push(args[0])
-                                   return args[1]}
+                                   return args[1]},
 }
+
 function s_expressionParser(input) {
   if(input[0] != '(') return null
   input = input.slice(1)
@@ -77,6 +78,12 @@ function spaceParser(input) {
   return null
 }
 
+function quoteParser(input) {
+  if(input[0] != "'") return null
+  let i = input.lastIndexOf(")")
+  let result = input.slice(1).substr(0, i+1)
+  return([result, input.slice(result+1)])
+}
 function numParser(input) {
   let parsedNum = (/^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/).exec(input)
   if(parsedNum) {
@@ -111,6 +118,7 @@ function identifierParser(input) {
 }
 
 function funcEvaluator(input, env) {
+  if (input.length === 0) return input
   let func = input[0], result = null
   input.shift()
   let key = Object.keys(env)
