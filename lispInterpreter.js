@@ -11,9 +11,9 @@ fs.readFile(filename, 'utf-8', function(err, inpStr) {
           })
 
 function expressionParser(input) {
-  let result = parserFactory(input)
-  if(result.length != 0) {
-    let resultArray = result[0](input)
+  let parser = parserFactory(input)
+  if(parser.length != 0) {
+    let resultArray = parser[0](input)
     return resultArray
   }
   return null
@@ -21,13 +21,11 @@ function expressionParser(input) {
 
 function parserFactory(data) {
   const parsers = [numParser, stringParser, s_expressionParser, identifierParser]
-  let result = parsers.filter(function(parser) {
+  let parser = parsers.filter(function(parser) {
                         if(parser(data) != null) return parser
                       })
-  return result
+  return parser
 }
-
-let globalEnv = {}
 
 const defaultEnv = {
   '+' : add = function(args) { return (result = args.reduce(function(sum, value) { return (sum + value) }))},
@@ -41,7 +39,13 @@ const defaultEnv = {
   '>=' : greaterOrEqual = function(args) { return (args[0] >= args[1] ? 'T' : 'NIL')},
   'define' : define = function(args) { defaultEnv[args[0] = args[1]]
                                        return(args[1])},
-  'if' : condn = function(args) {return (result = args[0] ? args[1] : args[2])},
+  'if' : condn = function(args) { return (result = args[0] ? args[1] : args[2])},
+  'list' : lists = function(args) { return args},
+  'car' : car = function(args) { return args[0][0]},
+  'cdr' : cdr = function(args) { args[0].shift()
+                                 return args[0]},
+  'cons' : cons = function(args) { args[1].push(args[0])
+                                   return args[1]}
 }
 function s_expressionParser(input) {
   if(input[0] != '(') return null
@@ -60,7 +64,7 @@ function s_expressionParser(input) {
     resultArray.push(temp[0])
     input = temp[1]
   }
-  let result = funcEvaluator(resultArray)
+  let result = funcEvaluator(resultArray, defaultEnv)
   input = input.slice(1)
   return ([result, input])
 }
@@ -106,16 +110,14 @@ function identifierParser(input) {
   return null
 }
 
-function funcEvaluator(input) {
-  //console.log("funcEvaluator");
+function funcEvaluator(input, env) {
   let func = input[0], result = null
   input.shift()
-  let key = Object.keys(defaultEnv)
+  let key = Object.keys(env)
   for(let i = 0; i < key.length; i++) {
     if(func == key[i])
-      func = defaultEnv[key[i]]
+      func = env[key[i]]
   }
   result = func(input)
-
   return result
 }
