@@ -5,126 +5,150 @@ fs.readFile(filename, 'utf-8', function(err, inpStr) {
             if(err) throw err
             let value = expressionParser(inpStr)
             value = (value) ? value[0] : "Invalid"
-            console.log(value);
+            if(typeof value !== 'undefined') console.log(value);
           })
 
-function expressionParser(input) {
-  const parsers = [boolParser, numParser, stringParser, quoteParser, symbolParser ,s_expressionParser]
-  return (parserFactory(input, parsers))
-}
-
-function parserFactory(data, parsers) {
-  for(let i = 0; i < parsers.length; i++) {
-    let result = parsers[i](data)
-    if(result != null) return result
-  }
-  return result
-}
-
 const defaultEnv = {
-  '+' : add = function(args) { return (result = args.reduce(function(sum, value) { return (sum + value) }))},
-  '-' : sub = function(args) { return (result = args.reduce(function(diff, value) { return (diff - value) }))},
-  '*' : mul = function(args) { return (result = args.reduce(function(prod, value) { return (prod * value) }))},
-  '/' : div = function(args) { return (result = args.reduce(function(quot, value) { return (quot / value) }))},
+  '+' : add = function(args) { return (result = args.reduce(function(sum, value) { return parseInt(sum + value) }))},
+  '-' : sub = function(args) { return (result = args.reduce(function(diff, value) { return parseInt(diff - value) }))},
+  '*' : mul = function(args) { return (result = args.reduce(function(prod, value) { return parseInt(prod * value) }))},
+  '/' : div = function(args) { return (result = args.reduce(function(quot, value) { return parseInt(quot / value) }))},
   '<' : lesser = function(args) { return (args[0] < args[1] ? true : false)},
   '>' : greater = function(args) { return (args[0] > args[1] ? true : false)},
   '=' : equals = function(args) { return (args[0] === args[1] ? true : false)},
   '<=' : lesserOrEqual = function(args) { return (args[0] <= args[1] ? true : false)},
   '>=' : greaterOrEqual = function(args) { return (args[0] >= args[1] ? true : false)},
-  'define' : define = function(args) { defaultEnv[args[0] = args[1]]
-                                       return(args[1])},
-  'if' : condn = function(args) { return (result = args[0] ? args[1] : args[2])},
   'list' : lists = function(args) { return args},
   'car' : car = function(args) { return args[0][0]},
   'cdr' : cdr = function(args) { return args[0].slice(1)},
   'cons' : cons = function(args) { args[1].push(args[0])
                                    return args[1]},
-  'print' : print = function(args) {return args[0]}
+  'print' : print = function(args) {return args[0]},
 }
 
-function s_expressionParser(input) {
-  if(input[0] != '(') return null
-  input = input.slice(1)
-  let resultArray = []
-  while(input[0] != ')') {
-    input = ((spaceParsedData = spaceParser(input)) != null) ? spaceParsedData[1] : input
-    let foo = expressionParser(input)
-    if(foo) {resultArray.push(foo[0])
-      input = foo[1]}
-    else {
-      let i = input.indexOf(" ")
-      resultArray.push(input.slice(0, i))
-      input = input.slice(i)
-      }
-    input = ((spaceParsedData = spaceParser(input)) != null) ? spaceParsedData[1] : input
+var globalEnv = {}
+
+const s_expressionParser = function (input) {
+  if(input[0] !== '(') return null
+  input = (spaceParsedData = spaceParser(input.slice(1)) !== null) ? spaceParsedData[1] : input.slice(1)
+  let resultArray = specialParsers(input), temp
+  if(resultArray !== null) return resultArray
+  resultArray = []
+  while(input[0] !== ')') {
+    input = ((spaceParsedData = spaceParser(input)) !== null) ? spaceParsedData[1] : input
     if(input[0] === ')') break
-    let temp = expressionParser(input)
-    //console.log("temp "+temp[0], temp[1]);
-    if(temp) {
-      resultArray.push(temp[0])
-      input = temp[1]
-    }
+    temp = (resultArray.length === 0) ? symbolParser(input) : expressionParser(input)
+    if(!temp) return null
+    resultArray.push(temp[0])
+    input = temp[1]
   }
   let result = funcEvaluator(resultArray, defaultEnv)
-  input = input.slice(1)
-  return ((result) ? ([result, input]) : (resultArray[0], input))
+  return (result !== null) ? ([result, input.slice(1)]) : null
 }
 
-const spaceParser = function(input) {return (((/^(\s)+/).test(input)) ? ([' ', input.replace(/^(\s)+/, '')]) : null)}
-
-function quoteParser(input) {
-  if(input[0] != "'") return null
-  let i = input.indexOf(")")
-  let result = input.slice(1).substr(0, i+1)
-  return([result, input.slice(result+1)])
+const ifParser = function(input) {
+  if(input.substr(0, 2) !== 'if') return null
+  let condition = expressionParser(input.slice(3))
+  input = ((spaceParsedData = spaceParser(condition[1])) !== null) ? spaceParsedData[1] : condition[1]
+  if (condition[0]) return expressionParser(input)
+  if (!condition[0]) {
+    let i = (input[0] === '(') ? input.indexOf(')'): input.indexOf(' ')
+    input = ((spaceParsedData = spaceParser(input.slice(i+1))) !== null) ? spaceParsedData[1] : input.slice(i+1)
+    return (input[0] === ')') ? (['NIL', input.slice(1)]) : expressionParser(input)
+  }
 }
 
-function numParser(input) {
+const defParser = function(input) {
+  if(input.substr(0, 6) !== 'define') return null
+  let identifier = symbolParser(input.slice(7))
+  if(identifier === null) return (["Invalid", input])
+  input = ((spaceParsedData = spaceParser(identifier[1])) !== null) ? spaceParsedData[1] : identifier[1]
+  let value = expressionParser(input)
+  if (value !== null) {
+    globalEnv[identifier[0]] = value[0]
+    console.log(globalEnv);
+    return([ ,value[1]])}
+  return (["Invalid", input])
+}
+
+const lambdaParser = function(input) {
+  if(input.substr(0, 6) !== 'lambda') return null
+  let formals = [], localEnv = {}
+  input = input.slice(8)
+  while(input[0] != ')'){
+  let item = expressionParser(input)
+  formals.push(item[0])
+  input = item[1]
+  }
+  localEnv.args = formals
+  input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
+  funcBody = input.slice(0, (input.indexOf(')')+1))
+  localEnv.body = funcBody
+  return ([localEnv, input.indexOf(')'+2)])
+}
+const spaceParser = function(input) {return (((/^(\s|\n)+/).test(input)) ? ([' ', input.replace(/^(\s|\n)+/, '')]) : null)}
+
+const numParser = function(input) {
   let parsedNum = (/^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/).exec(input)
   if(parsedNum) {
     parsedNum = parsedNum[0]
     let resData = input.slice(parsedNum.length)
-    parsedNum = parseInt(parsedNum)
+    parsedNum = parseFloat(parsedNum)
     return ([parsedNum, resData])
   }
   return null
 }
 
-function stringParser(input) {
+const stringParser = function (input) {
   if (input[0] !== '"') return null
-  let i = input.slice(1).search(/"(\s|\))+/)
-  let parsedString = input.slice(1,i+1)
-  let resData = input.slice(i+2)
+  let i = input.slice(1).search(/"(\s|\))/)
+  let parsedString = input.slice(0,i+2)
+  let resData = input.slice(i+3)
   return (((spaceParsedData = spaceParser(resData)) !== null) ? ([parsedString, spaceParsedData[1]]) : ([parsedString, resData]))
-}
-
-function symbolParser(input) {
-  let parsedName = (/^[a-zA-Z]+/).exec(input)
-  if(parsedName) {
-    parsedName = parsedName[0]
-    let resData = input.slice(parsedName.length)
-    return([parsedName, resData])
-  }
-  return null
 }
 
 const boolParser = function(input) {
   if(input[0] === 'T')
     return (((spaceParsedData = spaceParser(input.slice(1))) !== null) ? ([true, spaceParsedData[1]]) : ([true, input.slice(1)]))
-  else if(input.substr(0, 3) === 'NIL')
+  if(input[0].substr(0, 3) === 'NIL')
     return (((spaceParsedData = spaceParser(input.slice(3))) !== null) ? ([false, spaceParsedData[1]]) : ([false, input.slice(3)]))
-  else return null
+  return null
 }
+
+const symbolParser = function (input) {
+  let parsedName = (/^[a-zA-Z'=+\-*\/\<\>]+/).exec(input)
+  if(parsedName) {
+    parsedName = parsedName[0]
+    let resData = input.slice(parsedName.length)
+    return(((spaceParsedData = spaceParser(resData)) !== null) ? ([parsedName, spaceParsedData[1]]) : ([parsedName, resData]))
+  }
+  return null
+}
+
+function anyParserFactory(...parsers) {
+  return function(input) {
+    for(let i = 0; i < parsers.length; i++) {
+      let result = parsers[i](input)
+      if(result !== null)return result
+    }
+  return null
+  }
+}
+
+const expressionParser = anyParserFactory(boolParser, numParser, stringParser, symbolParser, s_expressionParser)
+const specialParsers = anyParserFactory(ifParser, defParser, lambdaParser)
 
 function funcEvaluator(input, env) {
   if (input.length === 0) return 'NIL'
-  if (input.length === 1) return input[0]
-  let func = input[0], result = null
-  input.shift()
+  if (input.length === 1) return null
+  let func = input[0], flag = 0, args = input.slice(1)
   let key = Object.keys(env)
   for(let i = 0; i < key.length; i++) {
-    if(func == key[i])
+    if(func === key[i]){
+      flag = 1
       func = env[key[i]]
+      break }
   }
-  return func(input)
+  if(flag === 0) return funcEvaluator(input, globalEnv)
+  return func(args)
 }
