@@ -3,11 +3,18 @@ const fs = require('fs')
 
 fs.readFile(filename, 'utf-8', function(err, inpStr) {
             if(err) throw err
-            let value = expressionParser(inpStr)
-            value = (value) ? value[0] : "Invalid"
-            if(typeof value !== 'undefined') console.log(value);
-          })
+            programParser(inpStr)})
 
+function programParser(input) {
+  while(input.length !== 0) {
+    let result = expressionParser(input)
+    console.log("Prog: "+result);
+    result = (result) ? result : "Invalid"
+    if(result[0] !== undefined) console.log("Prog: "+result[0])
+    input = result[1]
+  }
+  return
+}
 const defaultEnv = {
   '+' : add = function(args) { return (result = args.reduce(function(sum, value) { return parseInt(sum + value) }))},
   '-' : sub = function(args) { return (result = args.reduce(function(diff, value) { return parseInt(diff - value) }))},
@@ -23,13 +30,18 @@ const defaultEnv = {
   'cdr' : cdr = function(args) { return args[0].slice(1)},
   'cons' : cons = function(args) { args[1].push(args[0])
                                    return args[1]},
-  'print' : print = function(args) {return args[0]},
+  'print' : print = function(args) {
+                  if(symbolParser(args[0]) === null) console.log(args[0])
+                  else {
+                    console.log(globalEnv[args[0]])
+                  }},
 }
 
 var globalEnv = {}
 
 const s_expressionParser = function (input) {
   if(input[0] !== '(') return null
+  console.log("In S-EP");
   input = (spaceParsedData = spaceParser(input.slice(1)) !== null) ? spaceParsedData[1] : input.slice(1)
   let resultArray = specialParsers(input), temp
   if(resultArray !== null) return resultArray
@@ -37,13 +49,15 @@ const s_expressionParser = function (input) {
   while(input[0] !== ')') {
     input = ((spaceParsedData = spaceParser(input)) !== null) ? spaceParsedData[1] : input
     if(input[0] === ')') break
-    temp = (resultArray.length === 0) ? symbolParser(input) : expressionParser(input)
+    temp = expressionParser(input)
     if(!temp) return null
-    resultArray.push(temp[0])
+    if(temp[0] !== undefined) resultArray.push(temp[0])
     input = temp[1]
   }
+  if(resultArray.length === 0) return
   let result = funcEvaluator(resultArray, defaultEnv)
-  return (result !== null) ? ([result, input.slice(1)]) : null
+  input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
+  return (result !== null) ? ([result, input]) : null
 }
 
 const ifParser = function(input) {
@@ -60,14 +74,26 @@ const ifParser = function(input) {
 
 const defParser = function(input) {
   if(input.substr(0, 6) !== 'define') return null
-  let identifier = symbolParser(input.slice(7))
+  console.log("In DP");
+  let identifier = symbolParser(input.slice(7)), result
+  console.log("DP: key "+identifier[0]);
   if(identifier === null) return (["Invalid", input])
   input = ((spaceParsedData = spaceParser(identifier[1])) !== null) ? spaceParsedData[1] : identifier[1]
+  console.log("DP: ip"+input.slice(1));
+  if((result = lambdaParser(input.slice(1))) !== null) {
+    console.log("is Lambda");
+    globalEnv[identifier[0]] = procHandler(result[0])
+    result = ((spaceParsedData = spaceParser(result[1].slice(1)))!== null) ? spaceParsedData[1] : result[1].slice(1)
+    return ([ , result])
+  }
   let value = expressionParser(input)
+  console.log("DP: val "+value);
   if (value !== null) {
     globalEnv[identifier[0]] = value[0]
-    console.log(globalEnv);
-    return([ ,value[1]])}
+    value = ((spaceParsedData = spaceParser(value[1].slice(1))) !== null) ? spaceParsedData[1] : value[1].slice(1)
+    //console.log("DP: ip "+value);
+    return([ ,value])}
+  //console.log("DP: ip "+input);
   return (["Invalid", input])
 }
 
@@ -76,15 +102,31 @@ const lambdaParser = function(input) {
   let formals = [], localEnv = {}
   input = input.slice(8)
   while(input[0] != ')'){
-  let item = expressionParser(input)
-  formals.push(item[0])
-  input = item[1]
+    let item = expressionParser(input)
+    formals.push(item[0])
+    input = item[1]
   }
+  localEnv.type = "lambda"
   localEnv.args = formals
   input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
-  funcBody = input.slice(0, (input.indexOf(')')+1))
+  console.log("LP: args"+formals);
+  funcBody = input.slice(0, (input.indexOf(')')) + 1)
+  console.log("LP: body"+funcBody);
   localEnv.body = funcBody
-  return ([localEnv, input.indexOf(')'+2)])
+  localEnv.env = {}
+  input = ((spaceParsedData = spaceParser(input.slice(funcBody.length+1)) !== null) ? spaceParsedData[1] : input.slice(funcBody.length+1))
+  console.log("LP: ip"+input);
+  return ([localEnv, input])
+}
+
+function procHandler(obj) {
+  return function(params) {
+    if(params.length !== obj.args.length) return null
+    for(let i = 0; i < params.length; i++){obj.env[obj.args[i]] = params[i]}
+    
+    console.log("Obj body"+obj.env[obj.args[0]]);
+    return expressionParser(obj.body)
+  }
 }
 const spaceParser = function(input) {return (((/^(\s|\n)+/).test(input)) ? ([' ', input.replace(/^(\s|\n)+/, '')]) : null)}
 
@@ -102,7 +144,7 @@ const numParser = function(input) {
 const stringParser = function (input) {
   if (input[0] !== '"') return null
   let i = input.slice(1).search(/"(\s|\))/)
-  let parsedString = input.slice(0,i+2)
+  let parsedString = input.slice(1,i+1)
   let resData = input.slice(i+3)
   return (((spaceParsedData = spaceParser(resData)) !== null) ? ([parsedString, spaceParsedData[1]]) : ([parsedString, resData]))
 }
@@ -141,6 +183,7 @@ const specialParsers = anyParserFactory(ifParser, defParser, lambdaParser)
 function funcEvaluator(input, env) {
   if (input.length === 0) return 'NIL'
   if (input.length === 1) return null
+  console.log("In eval");
   let func = input[0], flag = 0, args = input.slice(1)
   let key = Object.keys(env)
   for(let i = 0; i < key.length; i++) {
@@ -149,6 +192,6 @@ function funcEvaluator(input, env) {
       func = env[key[i]]
       break }
   }
-  if(flag === 0) return funcEvaluator(input, globalEnv)
+  if(flag === 0) {console.log("uf"+args);return funcEvaluator(input, globalEnv)}
   return func(args)
 }
