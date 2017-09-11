@@ -29,7 +29,7 @@ const defaultEnv = {
   'cdr' : cdr = function(args) { return args[0].slice(1)},
   'cons' : cons = function(args) { args[1].push(args[0])
                                    return args[1]},
-  'print' : print = function(...args) { console.log.apply(null, args) }
+  'print' : print = function(args) { console.log(args.toString()) }
 }
 
 var globalEnv = {}
@@ -51,8 +51,8 @@ const s_expressionParser = function (input) {
   if(resultArray.length === 0) return
   if (resultArray.length === 1) return ([resultArray[0], input])
   let result = funcEvaluator(resultArray, defaultEnv)
-  input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
-  return (result !== null) ? ([result, input]) : null
+  input = (spaceParsedData = spaceParser(input) !== null) ? spaceParsedData[1] : input
+  return ((result !== null) ? ([result, input]) : null)
 }
 
 const ifParser = function(input) {
