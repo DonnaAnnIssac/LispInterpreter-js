@@ -176,24 +176,12 @@ function funcEvaluator(input, env) {
     if(symbolParser(args[i]) !== null && globalEnv[args[i]] !== undefined)
       args[i] = globalEnv[args[i]]
   }
-  let key = Object.keys(env)
-  for(let i = 0; i < key.length; i++) {
-    if(func === key[i]) {
-      flag = 1
-      func = env[key[i]]
-      break }
-  }
-  if(flag === 0) return procEvaluator(func, args)
-  return func(args)
+
+  return (env.hasOwnProperty(func) ? env[func](args) : procEvaluator(func, args))
 }
 
 function procEvaluator(func, args) {
-  let key = Object.keys(globalEnv)
-  for(let i = 0; i < key.length; i++) {
-    if(func === key[i]) {
-      func = globalEnv[key[i]]
-      break }
-  }
+  func = globalEnv.hasOwnProperty(func) ? globalEnv[func] : func
   if(func.args.length !== args.length) return null
   let arr = func.args, str = func.body
   for(let i = 0; i < args.length; i++)
