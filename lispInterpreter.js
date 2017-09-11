@@ -6,11 +6,13 @@ fs.readFile(filename, 'utf-8', function(err, inpStr) {
             programParser(inpStr)})
 
 function programParser(input) {
-  while(input[0] !== ')') {
+  while(input.length !== 0 && input[0] !== undefined) {
+    input = ((spaceParsedData = spaceParser(input)) !== null) ? spaceParsedData[1] : input
     let result = expressionParser(input)
     result = (result) ? result : "Invalid"
     if(result[0] !== undefined) console.log(result[0])
-    input = result[1]
+    input = result[1].slice(1)
+    if (input.length === 1) return
   }
   return
 }
@@ -29,7 +31,7 @@ const defaultEnv = {
   'cdr' : cdr = function(args) { return args[0].slice(1)},
   'cons' : cons = function(args) { args[1].push(args[0])
                                    return args[1]},
-  'print' : print = function(args) { console.log(args.toString()) }
+  'print' : print = function(args) { console.log(args.join(' ')) }
 }
 
 var globalEnv = {}
@@ -74,7 +76,7 @@ const defParser = function(input) {
   input = ((spaceParsedData = spaceParser(identifier[1])) !== null) ? spaceParsedData[1] : identifier[1]
   if((result = lambdaParser(input.slice(1))) !== null) {
     globalEnv[identifier[0]] = result[0]
-    result = ((spaceParsedData = spaceParser(result[1].slice(1)))!== null) ? spaceParsedData[1] : result[1].slice(1)
+    result = ((spaceParsedData = spaceParser(result[1]))!== null) ? spaceParsedData[1] : result[1]
     return ([ , result])
   }
   let value = expressionParser(input)
@@ -94,17 +96,15 @@ const lambdaParser = function(input) {
     formals.push(item[0])
     input = item[1]
   }
-  fnObj.type = "lambda"
   fnObj.args = formals
   input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
   funcBody = input.slice(0, (input.indexOf('))') + 1))
   fnObj.body = funcBody
   fnObj.env = {}
-  input = ((spaceParsedData = spaceParser(input.slice(funcBody.length)) !== null) ? spaceParsedData[1] : input.slice(funcBody.length+1))
-  input = ((spaceParsedData = spaceParser(input.slice(1)) !== null) ? spaceParsedData[1] : input.slice(1))
+  input = ((spaceParsedData = spaceParser(input.slice(funcBody.length + 1))) !== null) ? spaceParsedData[1] : input.slice(funcBody.length + 1)
   if(input[0] !== ')' && input[0] !== '(') {
     let params = []
-  while(input[0] !== ')' && input[0] !== '(') //if parameters passed directly to lambda
+    while(input[0] !== ')' && input[0] !== '(') //if parameters passed directly to lambda
     {
       let temp = expressionParser(((spaceParsedData = spaceParser(input)) !== null) ? spaceParsedData[1] : input)
       params.push(temp[0])
