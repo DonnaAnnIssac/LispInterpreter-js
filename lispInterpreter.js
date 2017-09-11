@@ -6,20 +6,19 @@ fs.readFile(filename, 'utf-8', function(err, inpStr) {
             programParser(inpStr)})
 
 function programParser(input) {
-  while(input.length !== 0) {
+  while(input[0] !== ')') {
     let result = expressionParser(input)
-    console.log("Prog: "+result);
     result = (result) ? result : "Invalid"
-    if(result[0] !== undefined) console.log("Prog: "+result[0])
+    if(result[0] !== undefined) console.log(result[0])
     input = result[1]
   }
   return
 }
 const defaultEnv = {
-  '+' : add = function(args) { return (result = args.reduce(function(sum, value) { return parseInt(sum + value) }))},
-  '-' : sub = function(args) { return (result = args.reduce(function(diff, value) { return parseInt(diff - value) }))},
-  '*' : mul = function(args) { return (result = args.reduce(function(prod, value) { return parseInt(prod * value) }))},
-  '/' : div = function(args) { return (result = args.reduce(function(quot, value) { return parseInt(quot / value) }))},
+  '+' : add = function(args) { return (result = args.reduce(function(sum, value) { return parseFloat(sum + value) }))},
+  '-' : sub = function(args) { return (result = args.reduce(function(diff, value) { return parseFloat(diff - value) }))},
+  '*' : mul = function(args) { return (result = args.reduce(function(prod, value) { return parseFloat(prod * value) }))},
+  '/' : div = function(args) { return (result = args.reduce(function(quot, value) { return parseFloat(quot / value) }))},
   '<' : lesser = function(args) { return (args[0] < args[1] ? true : false)},
   '>' : greater = function(args) { return (args[0] > args[1] ? true : false)},
   '=' : equals = function(args) { return (args[0] === args[1] ? true : false)},
@@ -30,18 +29,13 @@ const defaultEnv = {
   'cdr' : cdr = function(args) { return args[0].slice(1)},
   'cons' : cons = function(args) { args[1].push(args[0])
                                    return args[1]},
-  'print' : print = function(args) {
-                  if(symbolParser(args[0]) === null) console.log(args[0])
-                  else {
-                    console.log(globalEnv[args[0]])
-                  }},
+  'print' : print = function(...args) { console.log.apply(null, args) }
 }
 
 var globalEnv = {}
 
 const s_expressionParser = function (input) {
   if(input[0] !== '(') return null
-  console.log("In S-EP");
   input = (spaceParsedData = spaceParser(input.slice(1)) !== null) ? spaceParsedData[1] : input.slice(1)
   let resultArray = specialParsers(input), temp
   if(resultArray !== null) return resultArray
@@ -55,6 +49,7 @@ const s_expressionParser = function (input) {
     input = temp[1]
   }
   if(resultArray.length === 0) return
+  if (resultArray.length === 1) return ([resultArray[0], input])
   let result = funcEvaluator(resultArray, defaultEnv)
   input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
   return (result !== null) ? ([result, input]) : null
@@ -74,60 +69,53 @@ const ifParser = function(input) {
 
 const defParser = function(input) {
   if(input.substr(0, 6) !== 'define') return null
-  console.log("In DP");
   let identifier = symbolParser(input.slice(7)), result
-  console.log("DP: key "+identifier[0]);
-  if(identifier === null) return (["Invalid", input])
+  if(identifier === null) return ([null, input])
   input = ((spaceParsedData = spaceParser(identifier[1])) !== null) ? spaceParsedData[1] : identifier[1]
-  console.log("DP: ip"+input.slice(1));
   if((result = lambdaParser(input.slice(1))) !== null) {
-    console.log("is Lambda");
-    globalEnv[identifier[0]] = procHandler(result[0])
+    globalEnv[identifier[0]] = result[0]
     result = ((spaceParsedData = spaceParser(result[1].slice(1)))!== null) ? spaceParsedData[1] : result[1].slice(1)
     return ([ , result])
   }
   let value = expressionParser(input)
-  console.log("DP: val "+value);
   if (value !== null) {
     globalEnv[identifier[0]] = value[0]
     value = ((spaceParsedData = spaceParser(value[1].slice(1))) !== null) ? spaceParsedData[1] : value[1].slice(1)
-    //console.log("DP: ip "+value);
     return([ ,value])}
-  //console.log("DP: ip "+input);
-  return (["Invalid", input])
+  return ([null, input])
 }
 
 const lambdaParser = function(input) {
   if(input.substr(0, 6) !== 'lambda') return null
-  let formals = [], localEnv = {}
+  let formals = [], fnObj = {}
   input = input.slice(8)
   while(input[0] != ')'){
     let item = expressionParser(input)
     formals.push(item[0])
     input = item[1]
   }
-  localEnv.type = "lambda"
-  localEnv.args = formals
+  fnObj.type = "lambda"
+  fnObj.args = formals
   input = ((spaceParsedData = spaceParser(input.slice(1))) !== null) ? spaceParsedData[1] : input.slice(1)
-  console.log("LP: args"+formals);
-  funcBody = input.slice(0, (input.indexOf(')')) + 1)
-  console.log("LP: body"+funcBody);
-  localEnv.body = funcBody
-  localEnv.env = {}
-  input = ((spaceParsedData = spaceParser(input.slice(funcBody.length+1)) !== null) ? spaceParsedData[1] : input.slice(funcBody.length+1))
-  console.log("LP: ip"+input);
-  return ([localEnv, input])
+  funcBody = input.slice(0, (input.indexOf('))') + 1))
+  fnObj.body = funcBody
+  fnObj.env = {}
+  input = ((spaceParsedData = spaceParser(input.slice(funcBody.length)) !== null) ? spaceParsedData[1] : input.slice(funcBody.length+1))
+  input = ((spaceParsedData = spaceParser(input.slice(1)) !== null) ? spaceParsedData[1] : input.slice(1))
+  if(input[0] !== ')' && input[0] !== '(') {
+    let params = []
+  while(input[0] !== ')' && input[0] !== '(') //if parameters passed directly to lambda
+    {
+      let temp = expressionParser(((spaceParsedData = spaceParser(input)) !== null) ? spaceParsedData[1] : input)
+      params.push(temp[0])
+      input = temp[1]
+    }
+    result = procEvaluator(fnObj, params)
+    return([result, input])
+   }
+  return ([fnObj, input])
 }
 
-function procHandler(obj) {
-  return function(params) {
-    if(params.length !== obj.args.length) return null
-    for(let i = 0; i < params.length; i++){obj.env[obj.args[i]] = params[i]}
-    
-    console.log("Obj body"+obj.env[obj.args[0]]);
-    return expressionParser(obj.body)
-  }
-}
 const spaceParser = function(input) {return (((/^(\s|\n)+/).test(input)) ? ([' ', input.replace(/^(\s|\n)+/, '')]) : null)}
 
 const numParser = function(input) {
@@ -183,15 +171,37 @@ const specialParsers = anyParserFactory(ifParser, defParser, lambdaParser)
 function funcEvaluator(input, env) {
   if (input.length === 0) return 'NIL'
   if (input.length === 1) return null
-  console.log("In eval");
   let func = input[0], flag = 0, args = input.slice(1)
+  for(let i = 0; i < args.length; i++) {
+    if(symbolParser(args[i]) !== null && globalEnv[args[i]] !== undefined)
+      args[i] = globalEnv[args[i]]
+  }
   let key = Object.keys(env)
   for(let i = 0; i < key.length; i++) {
-    if(func === key[i]){
+    if(func === key[i]) {
       flag = 1
       func = env[key[i]]
       break }
   }
-  if(flag === 0) {console.log("uf"+args);return funcEvaluator(input, globalEnv)}
+  if(flag === 0) return procEvaluator(func, args)
   return func(args)
+}
+
+function procEvaluator(func, args) {
+  let key = Object.keys(globalEnv)
+  for(let i = 0; i < key.length; i++) {
+    if(func === key[i]) {
+      func = globalEnv[key[i]]
+      break }
+  }
+  if(func.args.length !== args.length) return null
+  let arr = func.args, str = func.body
+  for(let i = 0; i < args.length; i++)
+    func.env[arr[i]] = args[i]
+
+  for (let argName of arr) {
+      str = str.replace(new RegExp(argName, 'g'), func.env[argName])
+  }
+  let result = s_expressionParser(str)
+  return result[0]
 }
