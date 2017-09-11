@@ -31,7 +31,7 @@ const defaultEnv = {
   'cdr' : cdr = (args) => args[0].slice(1),
   'cons' : cons = (args) => { args[1].push(args[0])
                             return args[1]},
-  'print' : print = function(args) { console.log(args.join(' ')) },
+  'print' : print = (args) => console.log(args.join(' ')),
   'max' : max = (args) => args.reduce((max, curr) => (max > curr) ? max : curr),
   'min' : min = (args) => args.reduce((min, curr) => (min < curr) ? min : curr)
 }
@@ -183,7 +183,7 @@ function procEvaluator(func, args) {
   func = globalEnv.hasOwnProperty(func) ? globalEnv[func] : func
   if(func.args.length !== args.length) return null
   let arr = func.args, str = func.body
-  for(let i = 0; i < args.length; i+)
+  for(let i = 0; i < args.length; i++)
     func.env[arr[i]] = args[i]
   for (let argName of arr)
       str = str.replace(new RegExp(argName, 'g'), func.env[argName])
