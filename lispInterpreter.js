@@ -31,7 +31,7 @@ const defaultEnv = {
   'cdr' : cdr = (args) => args[0].slice(1),
   'cons' : cons = (args) => { args[1].push(args[0])
                             return args[1]},
-  'print' : print = (args) => console.log(args.join(' ')),
+  'print' : print = (args) => { console.log.apply(null, args)},
   'max' : max = (args) => args.reduce((max, curr) => (max > curr) ? max : curr),
   'min' : min = (args) => args.reduce((min, curr) => (min < curr) ? min : curr)
 }
